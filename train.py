@@ -1,16 +1,6 @@
 import numpy as np
 import random, time
 
-'''
-    ### DNN Tester ###
-
-    Trains the 4-layer DNN on differently sized, randomly sampled training sets. Prints accuracy and time taken for each run.
-
-'''
-
-training_data, validation_data, test_data = mnistloader.load_data_wrapper()
-random.shuffle(training_data)
-random.shuffle(test_data)
 
 def sigmoid(x):
     return 1.0/(1.0+np.exp(-x))
@@ -19,15 +9,30 @@ def sigmoid_prime(x):
     s = sigmoid(x)
     return s * (1 - s)
 
-class Network:
+class Word2Vec:
 
-    def __init__(self, sizes):
-        self.num_layers = len(sizes)
-        self.sizes = sizes
-        self.biases = [np.random.randn(neurons, 1) for neurons in sizes[1:]]
-        self.weights = [np.random.randn(y, x) 
-                        for x, y in zip(sizes[:-1], sizes[1:])]
-        
+    def __init__(self, words, d):
+        self.wordToIndex, self.indexToWord = self.getOneHotEncoding(words)
+        self.d = d 
+
+    def getOneHotEncoding(self, words: str) -> dict:
+        if words is str:
+            newWords = set(words.lower().split())
+        elif words is list: 
+            newWords = set([word.lower() for word in words])
+        wordToIndex = {w: i for i, w in enumerate(newWords)}
+        indexToWord = {i: w for i, w in enumerate(newWords)}
+        return (wordToIndex, indexToWord)
+    
+    def indexWords(self, words: list) -> np.array:
+        return np.array([self.oneHotEncoding[word] for word in words])
+    
+    def initialiseWeights
+    
+    #pairs of indices, derived from the word pair
+    def generatePairs(self, words: list) -> list(int, int):
+        pass
+
     def feedforward(self, a):
         for b, w in zip(self.biases, self.weights):
             a = sigmoid(np.matmul(w, a)+b)
@@ -99,21 +104,8 @@ class Network:
 
         return partial_bias, partial_weight
     
-def timedrun(training_size, network):
-    print(f'Size: {training_size}')
-    random.shuffle(training_data)
-    random.shuffle(test_data)
-    start = time.time()
-    info = network.stoch_grad(training_data[:training_size], 30, 10, 3, test_data)
-    time_taken = round(time.time() - start, 3)
-    return training_size, *info, time_taken
-
 def main():
-    n = Network([784, 30, 30, 10])
-    info = [timedrun(50, n), timedrun(150, n), timedrun(500, n), timedrun(1500, n), timedrun(5000, n), timedrun(15000, n), timedrun(50000, n)]
-    
-    for i in info:
-        print(i)
+    pass
 
 if __name__ == '__main__':
     main()
