@@ -9,13 +9,35 @@ def sigmoid_prime(x):
     s = sigmoid(x)
     return s * (1 - s)
 
+def softmax(v: np.array):
+    expVector = np.exp(v - np.max(v)) #safe softmax
+    return expVector / np.sum(expVector)
+
 class Word2Vec:
 
-    def __init__(self, words, d):
-        self.wordToIndex, self.indexToWord = self.getOneHotEncoding(words)
-        self.d = d 
+    '''
+        General method:
+        1. Get one-hot encoding of all the words
+        2. Intialise window 
+        3. Multiply by W_in, to get embedding for centre word
+        4. Multiply by W_out, to get score for all words in vocab
+        5. Use softmax to get pd vector
+        6. Calculate loss
+        7. Backprop
+        8. Slide window by 1, repeat
+    
+        Do this first, then implement neg sampling. 
+    '''
 
-    def getOneHotEncoding(self, words: str) -> dict:
+    def __init__(self, words, d, r):
+        self.wordToIndex, self.indexToWord = self.getOneHotEncoding(words)
+        self.d = d #number of context dimensions
+        self.r = r #window size
+        self.W_in = self.initialiseWeights() #centre word embeddings
+        self.W_out = self.initialiseWeights() #context word embeddings
+    
+    #takes in corpus, removes copies, returns mappings to indices
+    def getOneHotEncoding(self, words) -> dict:
         if words is str:
             newWords = set(words.lower().split())
         elif words is list: 
@@ -23,15 +45,27 @@ class Word2Vec:
         wordToIndex = {w: i for i, w in enumerate(newWords)}
         indexToWord = {i: w for i, w in enumerate(newWords)}
         return (wordToIndex, indexToWord)
-    
+
+    #converts list of words into np array of indices 
     def indexWords(self, words: list) -> np.array:
         return np.array([self.oneHotEncoding[word] for word in words])
     
-    def initialiseWeights
+    #initialises weights randomly, for a (V, d) matrix
+    def initialiseWeights(self) -> np.array:
+        pass
+
+    #saves weights of matrices in a file
+    def storeModel(self):
+        pass
     
     #pairs of indices, derived from the word pair
     def generatePairs(self, words: list) -> list(int, int):
         pass
+
+    def forward(self, centreIndex: int, W_in: np.array, W_out: np.array) -> np.array:
+        centreContext = W_in[centreIndex]
+        scores = W_out @ centreContext
+        pdVector = softmax(scores)
 
     def feedforward(self, a):
         for b, w in zip(self.biases, self.weights):
