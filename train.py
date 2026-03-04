@@ -1,5 +1,6 @@
 import numpy as np
 import random, time
+from math import log
 
 
 def sigmoid(x):
@@ -19,127 +20,110 @@ class Word2Vec:
         General method:
         1. Get one-hot encoding of all the words
         2. Intialise window 
+        
+        ---forward---
         3. Multiply by W_in, to get embedding for centre word
         4. Multiply by W_out, to get score for all words in vocab
         5. Use softmax to get pd vector
         6. Calculate loss
+        -------------
+
         7. Backprop
         8. Slide window by 1, repeat
-    
         Do this first, then implement neg sampling. 
     '''
 
-    def __init__(self, words, d, r):
-        self.wordToIndex, self.indexToWord = self.getOneHotEncoding(words)
+    def __init__(self, words, d: int = 5, r: int = 2, lr: float = 0.01):
+        self.words = words.lower().split()
+        self.wordToIndex, self.indexToWord = self.getOneHotEncoding()
+        self.V = len(self.wordToIndex) #number of unique words
         self.d = d #number of context dimensions
         self.r = r #window size
-        self.W_in = self.initialiseWeights() #centre word embeddings
-        self.W_out = self.initialiseWeights() #context word embeddings
-    
+        self.lr = lr #learning rate 
+        self.W_in = self.initialiseWeights() #centre word embeddings (V, d)
+        self.W_out = self.initialiseWeights() #context word embeddings (V, d)
+
     #takes in corpus, removes copies, returns mappings to indices
-    def getOneHotEncoding(self, words) -> dict:
-        if words is str:
-            newWords = set(words.lower().split())
-        elif words is list: 
-            newWords = set([word.lower() for word in words])
+    def getOneHotEncoding(self) -> dict:
+        if isinstance(self.words, str):
+            newWords = sorted(set(self.words.lower().split()))
+        elif isinstance(self.words, list): 
+            newWords = sorted(set([word.lower() for word in self.words]))
+            #wordlists are sorted for consistency
         wordToIndex = {w: i for i, w in enumerate(newWords)}
         indexToWord = {i: w for i, w in enumerate(newWords)}
         return (wordToIndex, indexToWord)
 
     #converts list of words into np array of indices 
     def indexWords(self, words: list) -> np.array:
-        return np.array([self.oneHotEncoding[word] for word in words])
+        return np.array([self.wordToIndex[word] for word in words])
     
-    #initialises weights randomly, for a (V, d) matrix
+    #initialises weights randomly, for a (V x d) matrix
     def initialiseWeights(self) -> np.array:
-        pass
+        return np.random.rand(self.V, self.d)
 
     #saves weights of matrices in a file
     def storeModel(self):
         pass
+
+    def forward(self, centreIndex: int) -> (np.array, np.array):
+        centreContext = self.W_in[centreIndex] #one-hot encoding, which is equivalent to a lookup
+        scores = self.W_out @ centreContext    
+        probDistVector = softmax(scores)
+        return (centreContext, probDistVector)
     
-    #pairs of indices, derived from the word pair
-    def generatePairs(self, words: list) -> list(int, int):
-        pass
-
-    def forward(self, centreIndex: int, W_in: np.array, W_out: np.array) -> np.array:
-        centreContext = W_in[centreIndex]
-        scores = W_out @ centreContext
-        pdVector = softmax(scores)
-
-    def feedforward(self, a):
-        for b, w in zip(self.biases, self.weights):
-            a = sigmoid(np.matmul(w, a)+b)
-        return a
+    def crossEntropyLoss(self, pd, targetIndex):
+        #target is one-hot, so all other terms are 0
+        return -log(pd[targetIndex])
     
-    def evaluate(self, test_data):
-        results = [(np.argmax(self.feedforward(x)), y) for x, y in test_data] 
-        return sum(int(x == y) for x, y in results)
+    #abstracted out as this will change when swapping to negative sampling
+    def calculateGradients(self, probDistVector: np.array, targetEncoding: np.array, centreContext: np.array):
+        error = probDistVector - targetEncoding 
+        gradOut = np.outer(error, centreContext)
+        gradIn = self.W_out.T @ error
+        return (gradOut, gradIn)
     
-    def stoch_grad(self, training_data, epochs, minibatch_size, learning_rate, test_data=None):
-        n = len(training_data)
-        for i in range(epochs):
-            random.shuffle(training_data)
-            minibatches = [training_data[k:k+minibatch_size] for k in range(0, n, minibatch_size)]
-            for minibatch in minibatches:
-                self.update(minibatch, learning_rate)
-            
-            if test_data:
-                if i == epochs - 1:
-                    total = self.evaluate(test_data)
-                    l = len(test_data)
-                    print(f'Epoch {i}: {total} / {l} --> {round(total * 100 / l, 5)}')
-                    return (total, round(total * 100/l, 5))
-                else:
-                    print(f'Epoch {i} complete')
-
-            else:
-                print(f'Epoch {i} complete')
-
+    def updateMatrices(self, centreIndex, gradOut, gradIn, lr):
+        self.W_out -= lr * gradOut
+        self.W_in[centreIndex] -= self.lr * gradIn
     
-    def update(self, minibatch, learning_rate):
-        bias_sum = [np.zeros(b.shape) for b in self.biases]
-        weight_sum = [np.zeros(w.shape) for w in self.weights]
+    def backprop(self, centreIndex: int, targetIndex: int, centreContext: np.array, probDistVector: np.array):
+        targetEncoding = np.zeros(self.V)
+        targetEncoding[targetIndex] = 1 
 
-        for x, y in minibatch:
-            partial_bias, partial_weight = self.backpropagation(x, y)
-            bias_sum = [b + pb for b, pb in zip(bias_sum, partial_bias)]
-            weight_sum = [w + pw for w, pw in zip(weight_sum, partial_weight)]
+        gradOut, gradIn = self.calculateGradients(probDistVector, targetEncoding, centreContext)
 
-        self.weights = [w - (learning_rate/len(minibatch)) * sw for w, sw in zip(self.weights, weight_sum)]
-        self.biases = [b - (learning_rate/len(minibatch)) * sb for b, sb in zip(self.biases, bias_sum)]
+        self.updateMatrices(centreIndex, gradOut, gradIn, self.lr)
+
+        loss = self.crossEntropyLoss(probDistVector, targetIndex)
+
+        return loss
     
-    def get_activation(self, input_x):
-        activation = input_x
-        weightedinput = []
-        activations = [input_x]
-        for b, w in zip(self.biases, self.weights):
-            z = np.matmul(w, activation) + b
-            weightedinput.append(z)
-            activation = sigmoid(z)
-            activations.append(activation)
-        return weightedinput, activations
-            
-    def backpropagation(self, input_x, y):
-        partial_bias = [np.zeros(b.shape) for b in self.biases]
-        partial_weight = [np.zeros(w.shape) for w in self.weights]
-
-        weightedinput, activation = self.get_activation(input_x)
-
-        delta = np.multiply(activation[-1] - y, sigmoid_prime(weightedinput[-1]))
-        partial_bias[-1] = delta
-        partial_weight[-1] = np.matmul(delta, np.transpose(activation[-2]))
-
-        for i in range(2, self.num_layers):
-            wT = np.transpose(self.weights[-i+1])
-            delta = np.multiply(np.matmul(wT, delta), sigmoid_prime(weightedinput[-i]))
-            partial_bias[-i] = delta
-            partial_weight[-i] = np.matmul(delta, np.transpose(activation[-i-1]))
-
-        return partial_bias, partial_weight
+    #single epoch
+    def trainingPass(self):
+        r = self.r 
+        netLoss = 0
+        indexVector = self.indexWords(self.words)
+        for i in range(r, self.V - r):
+            window = indexVector[i-r:i+r+1]
+            centreIndex = window[r]
+            centreContext, probDistVector = self.forward(centreIndex)
+            for j, targetIndex in enumerate(window):
+                if j == r:
+                    continue
+                netLoss += self.backprop(centreIndex, targetIndex, centreContext, probDistVector)
+        return netLoss
     
+
+
 def main():
-    pass
+    corpus = "the quick brown fox jumps over the lazy dog"
+    model = Word2Vec(corpus)
+    for epochs in range(25):
+        print(f"Loss: {model.trainingPass()}")
+
+    for word, idx in model.wordToIndex.items():
+        print(word, model.W_in[idx])
 
 if __name__ == '__main__':
     main()
