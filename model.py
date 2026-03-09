@@ -1,6 +1,6 @@
 import numpy as np
-import random, time
-from math import log
+
+import pickle
 
 
 def sigmoid(x):
@@ -10,9 +10,7 @@ def sigmoid_prime(x):
     s = sigmoid(x)
     return s * (1 - s)
 
-def softmax(v: np.array):
-    expVector = np.exp(v - np.max(v)) #safe softmax
-    return expVector / np.sum(expVector)
+
 
 class Word2Vec:
 
@@ -58,7 +56,10 @@ class Word2Vec:
         self.indexCorpus = self.indexWords(self.corpus) 
 
     def setCorpus(self, corpus: str):
-        self.corpus = corpus.lower().split()
+        if isinstance(corpus, str):
+            self.corpus = corpus.lower().split()
+        else:
+            self.corpus = [word.lower() for word in corpus]
 
     #takes in corpus, removes copies, returns mappings to indices
     def setOneHotEncoding(self):
@@ -78,8 +79,40 @@ class Word2Vec:
         return np.random.rand(self.V, self.d)
 
     #saves weights of matrices in a file
-    def storeModel(self):
-        pass
+    def save(self, filepath):
+        data = {
+            "W_in": self.W_in,
+            "W_out": self.W_out,
+            "wordToIndex": self.wordToIndex,
+            "indexToWord": self.indexToWord,
+            "d": self.d,
+            "r": self.r,
+            "lr": self.lr,
+            "k": self.k
+        }
+        with open(filepath, "wb") as f:
+            pickle.dump(data, f)
+        print(f"Model saved to {filepath}")
+
+    @classmethod
+    def load(cls, filepath):
+        with open(filepath, 'rb') as f:
+            data = pickle.load(f)
+
+        model = cls(d=data['d'], r=data['r'], lr=data['lr'], k=data['k'])
+
+        model.W_in = data['W_in']
+        model.W_out = data['W_out']
+        model.wordToIndex = data['wordToIndex']
+        model.indexToWord = data['indexToWord']
+        model.V = len(model.wordToIndex)
+
+        # rebuild indexCorpus if desired (optional)
+        # you can reconstruct it from a corpus if you saved one
+        # model.indexCorpus = np.array([model.wordToIndex[w] for w in saved_corpus])
+
+        print(f"Model loaded from {filepath}")
+        return model
 
     #returns list of indices, corresponding to randomly sampled negatives
     def sampleNegatives(self, targetIndex):
@@ -98,16 +131,6 @@ class Word2Vec:
         probDistVector = sigmoid(scores)
 
         return centreVector, sampled, probDistVector
-
-    def forward1(self, centreIndex: int) -> (np.array, np.array):
-        centreVector = self.W_in[centreIndex] #one-hot encoding, which is equivalent to a lookup
-        scores = self.W_out @ centreVector    
-        probDistVector = softmax(scores)
-        return (centreVector, probDistVector)
-    
-    def crossEntropyLoss(self, pd, targetIndex):
-        #target is one-hot, so all other terms are 0
-        return -log(pd[targetIndex])
     
     def loss(self, probDistVector):
         positive = probDistVector[0]
@@ -171,21 +194,3 @@ class Word2Vec:
         for epoch in range(epochs):
             loss = self.trainingPass()  
             print(f"Epoch {epoch+1}, Loss: {loss:.4f}")
-
-
-def main():
-
-    corpus = """
-In a village of La Mancha, the name of which I have no desire to call to mind, 
-there lived not long since one of those gentlemen that keep a lance in the lance-rack, 
-an old buckler, a lean hack, and a greyhound for coursing. 
-An olla of rather more beef than mutton, a salad on most nights, scraps on Saturdays, 
-lentils on Fridays, and a pigeon or so extra on Sundays, made away with three-quarters of his income.
-"""
-
-    model = Word2Vec()
-    model.setup(corpus)
-    model.train()
-
-if __name__ == '__main__':
-    main()
