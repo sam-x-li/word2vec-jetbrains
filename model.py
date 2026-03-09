@@ -1,5 +1,6 @@
 import numpy as np
-import pickle
+from collections import Counter 
+import random, pickle
 
 def sigmoid(x):
     return 1.0/(1.0+np.exp(-x))
@@ -27,6 +28,7 @@ class Word2Vec:
         self.corpus = []
         self.wordToIndex = {}
         self.indexToWord = {}
+        self.wordToFreq = {}
 
         self.d = d # embedding size
         self.r = r # window size
@@ -40,6 +42,8 @@ class Word2Vec:
     def setup(self, corpus):
         self.setCorpus(corpus)
         self.setOneHotEncoding()
+        self.setFrequencyTable()
+        self.subSampleCorpus()
 
         self.V = len(self.wordToIndex)
         self.W_in = self.initialiseWeights()
@@ -58,6 +62,23 @@ class Word2Vec:
         newWords = sorted(set(self.corpus))
         self.wordToIndex = {w: i for i, w in enumerate(newWords)}
         self.indexToWord = {i: w for i, w in enumerate(newWords)}
+    
+    def setFrequencyTable(self):
+        counts = Counter(self.corpus)
+        total = len(self.corpus)
+
+        self.wordToFreq = {w: counts[w] / total for w in counts}   
+
+    def subSampleCorpus(self, t=1e-5):
+        newCorpus = []
+
+        for word in self.corpus:
+            freq = self.wordToFreq[word]
+            discardProb = 1 - np.sqrt(t / freq)
+            if random.random() > discardProb: 
+                newCorpus.append(word)
+        
+        self.corpus = newCorpus
 
     #converts list of words into np array of indices 
     def indexWords(self, words: list) -> np.array:
@@ -70,7 +91,7 @@ class Word2Vec:
     def initialiseWeights(self) -> np.array:
         return np.random.rand(self.V, self.d)
 
-    #saves weights of matrices in a file
+    #saves parameters at filepath
     def save(self, filepath):
         data = {
             "W_in": self.W_in,
