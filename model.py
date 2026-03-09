@@ -33,7 +33,9 @@ class Word2Vec:
         self.d = d # embedding size
         self.r = r # window size
         self.lr = lr # learning rate 
-        self.k = k # number of negative samples
+        self.k = k # number of negative sample
+
+        self.unigramDist = np.array([])
 
         self.V = 0 #number of unique words
         self.W_in = self.initialiseWeights() #centre word embeddings (V, d)
@@ -42,7 +44,7 @@ class Word2Vec:
     def setup(self, corpus):
         self.setCorpus(corpus)
         self.setOneHotEncoding()
-        self.setFrequencyTable()
+        self.setFreqAndDist()
         self.subSampleCorpus()
 
         self.V = len(self.wordToIndex)
@@ -63,10 +65,12 @@ class Word2Vec:
         self.wordToIndex = {w: i for i, w in enumerate(newWords)}
         self.indexToWord = {i: w for i, w in enumerate(newWords)}
     
-    def setFrequencyTable(self):
+    def setFreqAndDist(self):
         counts = Counter(self.corpus)
         total = len(self.corpus)
 
+        freqs = np.array([counts[w] for w in counts])
+        self.unigramDist = freqs / freqs.sum()
         self.wordToFreq = {w: counts[w] / total for w in counts}   
 
     def subSampleCorpus(self, t=1e-5):
@@ -79,7 +83,7 @@ class Word2Vec:
                 newCorpus.append(word)
         
         self.corpus = newCorpus
-
+    
     #converts list of words into np array of indices 
     def indexWords(self, words: list) -> np.array:
         return np.array(
@@ -122,12 +126,15 @@ class Word2Vec:
 
         print(f"Model loaded from {filepath}")
         return model
+    
+    def sampleUnigram(self):
+        return np.random.choice(self.V, p=self.unigramDist)
 
     #returns list of indices, corresponding to randomly sampled negatives
     def sampleNegatives(self, targetIndex):
         negatives = []
         while len(negatives) < self.k:
-            sample = np.random.randint(0, self.V)
+            sample = self.sampleUnigram()
             if sample != targetIndex:
                 negatives.append(sample)
         return negatives
