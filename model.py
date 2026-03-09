@@ -153,10 +153,10 @@ class Word2Vec:
         positive = probDistVector[0]
         negative = probDistVector[1:]
 
-        loss = -np.log(positive + 1e-10)
-        loss -= np.sum(np.log(1 - negative)) #algebraic trick with sigmoid
+        result = -np.log(positive + 1e-10)
+        result -= np.sum(np.log(1 - negative)) #algebraic trick with sigmoid
         
-        return loss 
+        return result
     
     def calculateGradients(self, probDistVector: np.array, targetEncoding: np.array, centreVector: np.array, contextVectors: np.array):
         error = probDistVector - targetEncoding
