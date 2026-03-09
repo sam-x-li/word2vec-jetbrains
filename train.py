@@ -1,7 +1,10 @@
 from model import Word2Vec
 import nltk, re
-nltk.download("gutenberg")
 from nltk.corpus import gutenberg
+
+nltk.download("gutenberg")
+
+epochs = 30
 
 def main():
     rawText = gutenberg.raw("carroll-alice.txt")
@@ -11,7 +14,7 @@ def main():
 
     model = Word2Vec()
     model.setup(corpus)
-    model.train(30)
+    model.train(epochs)
 
     model.save("word2vec_model.pkl")
 

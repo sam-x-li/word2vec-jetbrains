@@ -1,4 +1,3 @@
-import model
 import numpy as np 
 from model import Word2Vec
 from numpy.linalg import norm
