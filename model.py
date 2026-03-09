@@ -38,34 +38,34 @@ class Word2Vec:
         self.unigramDist = np.array([])
 
         self.V = 0 #number of unique words
-        self.W_in = self.initialiseWeights() #centre word embeddings (V, d)
-        self.W_out = self.initialiseWeights() #context word embeddings (V, d)
+        self.W_in = self._initialiseWeights() #centre word embeddings (V, d)
+        self.W_out = self._initialiseWeights() #context word embeddings (V, d)
 
     def setup(self, corpus: str | list[str]):
-        self.setCorpus(corpus)
-        self.setOneHotEncoding()
-        self.setFreqAndDist()
-        self.subSampleCorpus()
+        self._setCorpus(corpus)
+        self._setOneHotEncoding()
+        self._setFreqAndDist()
+        self._subSampleCorpus()
 
         self.V = len(self.wordToIndex)
-        self.W_in = self.initialiseWeights()
-        self.W_out = self.initialiseWeights()
+        self.W_in = self._initialiseWeights()
+        self.W_out = self._initialiseWeights()
 
-        self.indexCorpus = self.indexWords(self.corpus) 
+        self.indexCorpus = self._indexWords(self.corpus) 
 
-    def setCorpus(self, corpus: str | list[str]):
+    def _setCorpus(self, corpus: str | list[str]):
         if isinstance(corpus, str):
             self.corpus = corpus.lower().split()
         else:
             self.corpus = [word.lower() for word in corpus]
 
     #takes in corpus, removes copies, returns mappings to indices
-    def setOneHotEncoding(self):
+    def _setOneHotEncoding(self):
         newWords = sorted(set(self.corpus))
         self.wordToIndex = {w: i for i, w in enumerate(newWords)}
         self.indexToWord = {i: w for i, w in enumerate(newWords)}
     
-    def setFreqAndDist(self):
+    def _setFreqAndDist(self):
         counts = Counter(self.corpus)
         total = len(self.corpus)
 
@@ -73,7 +73,7 @@ class Word2Vec:
         self.unigramDist = freqs / freqs.sum()
         self.wordToFreq = {w: counts[w] / total for w in counts}
 
-    def subSampleCorpus(self, t: float = 1e-3):
+    def _subSampleCorpus(self, t: float = 1e-3):
         newCorpus = []
 
         for word in self.corpus:
@@ -86,14 +86,14 @@ class Word2Vec:
         self.corpus = newCorpus
     
     #converts list of words into np array of indices 
-    def indexWords(self, words: list) -> np.ndarray:
+    def _indexWords(self, words: list) -> np.ndarray:
         return np.array(
             [self.wordToIndex[word] for word in words],
             dtype=np.int32
             )
     
     #initialises weights randomly, for a (V x d) matrix
-    def initialiseWeights(self) -> np.ndarray:
+    def _initialiseWeights(self) -> np.ndarray:
         return np.random.rand(self.V, self.d)
 
     #saves parameters at filepath
@@ -128,28 +128,28 @@ class Word2Vec:
         print(f"Model loaded from {filepath}")
         return model
     
-    def sampleUnigram(self) -> int:
+    def _sampleUnigram(self) -> int:
         return np.random.choice(self.V, p=self.unigramDist)
 
     #returns list of indices, corresponding to randomly sampled negatives
-    def sampleNegatives(self, targetIndex: int) -> list[int]:
+    def _sampleNegatives(self, targetIndex: int) -> list[int]:
         negatives = []
         while len(negatives) < self.k:
-            sample = self.sampleUnigram()
+            sample = self._sampleUnigram()
             if sample != targetIndex:
                 negatives.append(sample)
         return negatives
 
-    def forward(self, centreIndex: int, targetIndex: int) -> tuple[np.ndarray, list[int], np.ndarray]:
+    def _forward(self, centreIndex: int, targetIndex: int) -> tuple[np.ndarray, list[int], np.ndarray]:
         centreVector = self.W_in[centreIndex] #one-hot encoding, which is equivalent to a lookup
-        negatives = self.sampleNegatives(targetIndex)
+        negatives = self._sampleNegatives(targetIndex)
         sampled = [targetIndex] + negatives
         scores = self.W_out[sampled] @ centreVector    
         probDistVector = sigmoid(scores)
 
         return (centreVector, sampled, probDistVector)
     
-    def loss(self, probDistVector: np.ndarray) -> float:
+    def _loss(self, probDistVector: np.ndarray) -> float:
         positive = probDistVector[0]
         negative = probDistVector[1:]
 
@@ -158,7 +158,7 @@ class Word2Vec:
         
         return result
     
-    def calculateGradients(
+    def _calculateGradients(
             self, 
             probDistVector: np.ndarray, 
             targetEncoding: np.ndarray, 
@@ -172,7 +172,7 @@ class Word2Vec:
 
         return (gradOut, gradIn)
     
-    def updateMatrices(
+    def _updateMatrices(
             self, 
             sampled: np.ndarray, 
             centreIndex: int, 
@@ -184,7 +184,7 @@ class Word2Vec:
             self.W_out[wordIndex] -= self.lr * gradOut[i]
         self.W_in[centreIndex] -= self.lr * gradIn
     
-    def backprop(
+    def _backprop(
             self, 
             centreIndex: int, 
             centreVector: np.ndarray, 
@@ -197,18 +197,18 @@ class Word2Vec:
 
         contextVectors = self.W_out[sampled]
 
-        gradOut, gradIn = self.calculateGradients(probDistVector, targetEncoding, centreVector, contextVectors)
+        gradOut, gradIn = self._calculateGradients(probDistVector, targetEncoding, centreVector, contextVectors)
 
-        self.updateMatrices(sampled, centreIndex, gradOut, gradIn)
+        self._updateMatrices(sampled, centreIndex, gradOut, gradIn)
     
-    def trainPair(self, centreIndex: int, targetIndex: int):
-        centreVector, sampled, probDistVector = self.forward(centreIndex, targetIndex)
-        loss = self.loss(probDistVector)
-        self.backprop(centreIndex, centreVector, sampled, probDistVector)
+    def _trainPair(self, centreIndex: int, targetIndex: int):
+        centreVector, sampled, probDistVector = self._forward(centreIndex, targetIndex)
+        loss = self._loss(probDistVector)
+        self._backprop(centreIndex, centreVector, sampled, probDistVector)
         return loss
 
     #single epoch
-    def trainingPass(self):
+    def _trainingPass(self):
         r = self.r 
         netLoss = 0
         for i in range(r, len(self.indexCorpus) - r):
@@ -217,11 +217,11 @@ class Word2Vec:
             for j, targetIndex in enumerate(window):
                 if j == r:
                     continue
-                netLoss += self.trainPair(centreIndex, targetIndex)
+                netLoss += self._trainPair(centreIndex, targetIndex)
 
         return netLoss
     
     def train(self, epochs: int = 100):
         for epoch in range(epochs):
-            loss = self.trainingPass()  
+            loss = self._trainingPass()  
             print(f"Epoch {epoch+1}, Loss: {loss:.4f}")
