@@ -1,16 +1,8 @@
 import numpy as np
-
 import pickle
-
 
 def sigmoid(x):
     return 1.0/(1.0+np.exp(-x))
-
-def sigmoid_prime(x):
-    s = sigmoid(x)
-    return s * (1 - s)
-
-
 
 class Word2Vec:
 
@@ -20,15 +12,15 @@ class Word2Vec:
         2. Intialise window 
         
         ---forward---
+        3. Select pair from window
+        4. Sample k negatives
         3. Multiply by W_in, to get embedding for centre word
-        4. Multiply by W_out, to get score for all words in vocab
-        5. Use softmax to get pd vector
+        4. Multiply by part of W_out, to get scores (only using pair and negatives)
         6. Calculate loss
         -------------
 
-        7. Backprop
+        7. Backprop, update sampled words
         8. Slide window by 1, repeat
-        Do this first, then implement neg sampling. 
     '''
 
     def __init__(self, d: int = 50, r: int = 5, k: int = 5, lr: float = 0.02):
@@ -107,10 +99,6 @@ class Word2Vec:
         model.indexToWord = data['indexToWord']
         model.V = len(model.wordToIndex)
 
-        # rebuild indexCorpus if desired (optional)
-        # you can reconstruct it from a corpus if you saved one
-        # model.indexCorpus = np.array([model.wordToIndex[w] for w in saved_corpus])
-
         print(f"Model loaded from {filepath}")
         return model
 
@@ -141,13 +129,6 @@ class Word2Vec:
         
         return loss 
     
-    #abstracted out as this will change when swapping to negative sampling
-    def calculateGradients1(self, probDistVector: np.array, targetEncoding: np.array, centreVector: np.array):
-        error = probDistVector - targetEncoding 
-        gradOut = np.outer(error, centreVector)
-        gradIn = self.W_out.T @ error
-        return (gradOut, gradIn)
-    
     def calculateGradients(self, probDistVector: np.array, targetEncoding: np.array, centreVector: np.array, contextVectors: np.array):
         error = probDistVector - targetEncoding
         gradOut = np.outer(error, centreVector)
@@ -159,7 +140,7 @@ class Word2Vec:
             self.W_out[wordIndex] -= self.lr * gradOut[i]
         self.W_in[centreIndex] -= self.lr * gradIn
     
-    def backprop(self, centreIndex: int, targetIndex: int, centreVector: np.array, sampled: list, probDistVector: np.array):
+    def backprop(self, centreIndex: int, centreVector: np.array, sampled: list, probDistVector: np.array):
         targetEncoding = np.zeros(len(sampled))
         targetEncoding[0] = 1 
 
@@ -172,7 +153,7 @@ class Word2Vec:
     def trainPair(self, centreIndex, targetIndex):
         centreVector, sampled, probDistVector = self.forward(centreIndex, targetIndex)
         loss = self.loss(probDistVector)
-        self.backprop(centreIndex, targetIndex, centreVector, sampled, probDistVector)
+        self.backprop(centreIndex, centreVector, sampled, probDistVector)
         return loss
 
     #single epoch
@@ -182,7 +163,6 @@ class Word2Vec:
         for i in range(r, self.V - r):
             window = self.indexCorpus[i-r:i+r+1]
             centreIndex = window[r]
-
             for j, targetIndex in enumerate(window):
                 if j == r:
                     continue
