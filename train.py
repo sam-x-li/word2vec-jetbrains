@@ -11,7 +11,7 @@ def main():
 
     model = Word2Vec()
     model.setup(corpus)
-    model.train(50)
+    model.train(30)
 
     model.save("word2vec_model.pkl")
 

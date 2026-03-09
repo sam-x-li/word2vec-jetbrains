@@ -69,11 +69,11 @@ class Word2Vec:
         counts = Counter(self.corpus)
         total = len(self.corpus)
 
-        freqs = np.array([counts[w] for w in counts])
+        freqs = np.array([counts[w] for w in counts]) ** 0.75
         self.unigramDist = freqs / freqs.sum()
-        self.wordToFreq = {w: counts[w] / total for w in counts}   
+        self.wordToFreq = {w: counts[w] / total for w in counts}
 
-    def subSampleCorpus(self, t=1e-5):
+    def subSampleCorpus(self, t=1e-3):
         newCorpus = []
 
         for word in self.corpus:
@@ -82,6 +82,7 @@ class Word2Vec:
             if random.random() > discardProb: 
                 newCorpus.append(word)
         
+        print(f"Original corpus: {len(self.corpus)}\nNew corpus: {len(newCorpus)}")
         self.corpus = newCorpus
     
     #converts list of words into np array of indices 
@@ -188,7 +189,7 @@ class Word2Vec:
     def trainingPass(self):
         r = self.r 
         netLoss = 0
-        for i in range(r, self.V - r):
+        for i in range(r, len(self.indexCorpus) - r):
             window = self.indexCorpus[i-r:i+r+1]
             centreIndex = window[r]
             for j, targetIndex in enumerate(window):
