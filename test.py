@@ -25,7 +25,7 @@ def most_similar(model, word, top_n=5):
 
 def main():
     model = Word2Vec.load("word2vec_model.pkl")
-    examples = ["alice", "queen", "king", "rabbit"]
+    examples = ["alice", "queen", "king", "rabbit", "white"]
 
     for word in examples:
         print(f"Top similar words to '{word}':")

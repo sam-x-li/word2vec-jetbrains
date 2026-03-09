@@ -4,7 +4,7 @@ from nltk.corpus import gutenberg
 
 nltk.download("gutenberg")
 
-epochs = 30
+epochs = 50
 
 def main():
     rawText = gutenberg.raw("carroll-alice.txt")
